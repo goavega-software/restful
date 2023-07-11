@@ -1,39 +1,36 @@
 # REST API Manager 
 
-Allows you to call any API and then transform the returned json data and return back.
+Allows you to call any API and then transform the returned json data and return back. Restful also supports using JSONPath style xpath to filter the JSON data. Currently, if both XPath and Transformer are provided, restful pipes the output of XPath to Transformer and then returns the final result. 
 
 Example use
 
 ```golang
 func main() {
 	// Get a message and print it.
-	options := restful.Options{}
+	options := Options{}
 	options.Method = "GET"
 	options.Headers = make(map[string]string)
 	options.Headers["Content-Type"] = "application/json"
-	options.Transformer = `[
+	options.XPath = "$.results[0].name"
+	options.Transformer = `
+	[
 		{
-			"operation": "shift", 
-			  "spec": {
-				"data.phrase": "phrase"
+			"operation": "delete",
+			"spec": {
+			  "paths": ["title"]
 			}
-		},
-		{
-		"operation": "default",
-		"spec": {
-		  "event": "message"
-		}
-	  }
-	  ]`
-	message, _ := restful.Call("https://corporatebs-generator.sameerkumar.website/", &options)
-	fmt.Println(message)
+		  }
+	  ]	
+	`
+	message, _ := Call("https://randomuser.me/api/", &options)
+	fmt.Print(message)
 }
 ```
 
-The above ex. makes the API call, formats the response JSON `{phrase: "Hello world"}` into `{event: "message", "data": "Hello world"}` and returns back.
+The above ex. makes the API call, extracts the name object from JSON, removes the `title` and returns back.
 
 JSON Transformation supports Jolt like transformations using [Kazaam](https://github.com/qntfy/kazaam)
-
+XPath provides complete implementation of http://goessner.net/articles/JsonPath/ using [JsonPath](https://github.com/PaesslerAG/jsonpath)
 Supports Basic authorization, and token/key based authentication.
 
 There is basic string interpolation support in url, raw body and headers. Tokens in the form of `${var}` are replaced with `os.Getenv(var)`. Below is one example:

@@ -2,6 +2,7 @@ package restful
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/PaesslerAG/jsonpath"
 	"github.com/qntfy/kazaam"
 )
 
@@ -18,6 +20,7 @@ type Options struct {
 	Payload     string
 	Headers     map[string]string
 	Transformer string
+	XPath       string
 }
 
 func interfacify(input []string) []interface{} {
@@ -55,7 +58,7 @@ func Call(url string, options *Options) (string, int) {
 	if options.Method != "" {
 		method = options.Method
 	}
-	log.Println("{0} Performing Http {1}...", parsedUrl, strings.ToUpper(method))
+	log.Println("Performing Http ...", parsedUrl, strings.ToUpper(method))
 	client := &http.Client{}
 	var req *http.Request
 	if data != nil {
@@ -84,15 +87,37 @@ func Call(url string, options *Options) (string, int) {
 
 	// Convert response body to string
 	bodyString := string(bodyBytes)
-	if options.Transformer != "" && resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-		if !kazaam.IsJsonFast(bodyBytes) {
-			return "Invalid JSON", 400
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return bodyString, resp.StatusCode
+	}
+	if !kazaam.IsJsonFast(bodyBytes) {
+		return "Invalid JSON", 400
+	}
+	if options.XPath != "" {
+		log.Println("Performing xpath with ", options.XPath)
+		v := interface{}(nil)
+
+		json.Unmarshal([]byte(bodyString), &v)
+		doc, err := jsonpath.Get(options.XPath, v)
+		if err != nil {
+			return err.Error(), 500
 		}
+		// convert the map to JSON
+		b, err := json.Marshal(doc)
+		if err != nil {
+			return err.Error(), 500
+		}
+		bodyString = string(b)
+		log.Println("xpath result ", bodyString)
+	}
+	if options.Transformer != "" {
+		log.Println("Performing transformation with ", options.Transformer)
 		k, _ := kazaam.NewKazaam(options.Transformer)
 		json, e := k.TransformJSONStringToString(bodyString)
 		if e != nil {
 			return e.Error(), 500
 		}
+		log.Println("Performed transformation with {0}", json)
 		return json, resp.StatusCode
 	}
 	return bodyString, resp.StatusCode
