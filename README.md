@@ -62,3 +62,23 @@ func main() {
 }
 
 ```
+## Embedded JavaScript Engine
+Starting from version 0.4, Restful introduces an integrated ES2015/ES6 JavaScript runtime for scenarios where basic XPath and Transforms fall short. The options.JS parameter accepts a JavaScript literal that enables the transformation of input data. The JSON obtained from the API call is accessible through the *data* variable within the JavaScript code block. The JavaScript string should conclude with the value to be exported, as illustrated in the example below with the result being the exported output.
+
+```golang
+	options := Options{}
+	options.Method = "GET"
+	options.Headers = make(map[string]string)
+	options.Headers["Content-Type"] = "application/json"
+	options.JS = `const x = data.results.map(u => u.name)[0];
+	const { first, last } = x;` +
+		"const result = {\"name\": `${last}, ${first}`};result;"
+	message, _ := Call("https://randomuser.me/api/", &options)
+	fmt.Print(message)
+	t.Log(message)
+```
+
+Sequencing of transforms (output of each transform is fed into the next step as input):
+1. JS 
+2. XPath
+3. Transformer

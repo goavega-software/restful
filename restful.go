@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/PaesslerAG/jsonpath"
+	"github.com/dop251/goja"
 	"github.com/qntfy/kazaam"
 )
 
@@ -21,6 +22,7 @@ type Options struct {
 	Headers     map[string]string
 	Transformer string
 	XPath       string
+	JS          string
 }
 
 func interfacify(input []string) []interface{} {
@@ -93,11 +95,27 @@ func Call(url string, options *Options) (string, int) {
 	if !kazaam.IsJsonFast(bodyBytes) {
 		return "Invalid JSON", 400
 	}
+	v := interface{}(nil)
+	json.Unmarshal([]byte(bodyString), &v)
+	if options.JS != "" {
+		vm := goja.New()
+		vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
+		vm.Set("data", v)
+		val, err := vm.RunString(options.JS)
+		if err != nil {
+			panic(err)
+		}
+		v = val.Export()
+		// convert the map to JSON
+		b, err := json.Marshal(v)
+		if err != nil {
+			return err.Error(), 500
+		}
+		bodyString = string(b)
+	}
 	if options.XPath != "" {
 		log.Println("Performing xpath with ", options.XPath)
-		v := interface{}(nil)
 
-		json.Unmarshal([]byte(bodyString), &v)
 		doc, err := jsonpath.Get(options.XPath, v)
 		if err != nil {
 			return err.Error(), 500
